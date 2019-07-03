@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { Button, Form, Input, Select, Message, Balloon } from '@alifd/next';
+import { Button, Form, Input, Select, Message } from '@alifd/next';
 import { injectIntl, FormattedMessage } from 'react-intl';
 import Icon from '@components/Icon';
 import Modal from '@components/Modal';
@@ -9,11 +9,10 @@ import cx from 'classnames';
 import Panel from '../Panel';
 import stores from '../../stores';
 import regions from './dataSource';
+import PanelHead from '../Panel/head';
 import styles from './index.module.scss';
 
-const { Tooltip } = Balloon;
-
-const OSSPanel = ({ intl }) => {
+const OSSPanel = ({ intl, title, description }) => {
   const ossStore = stores.useStore('oss');
   const { dataSource } = ossStore;
   const {
@@ -70,37 +69,31 @@ const OSSPanel = ({ intl }) => {
     refeshBucket();
   }, []);
 
+  const operations = [
+    {
+      type: 'clear',
+      onClick: onClear,
+      tip: intl.formatMessage({ id: 'iceworks.project.panel.oss.button.clear' }),
+    },
+  ];
+
   return (
     <Panel
       header={
-        <div className={styles.header}>
-          <h3><FormattedMessage id="iceworks.project.panel.oss.title" /></h3>
-          <div className={styles.icons}>
-            <Tooltip
-              trigger={(
-                <Icon
-                  className={styles.icon}
-                  type="clear"
-                  size="small"
-                  onClick={onClear}
-                />
-              )}
-              align="b"
-            >
-              {intl.formatMessage({ id: 'iceworks.project.panel.oss.button.clear' })}
-            </Tooltip>
-          </div>
-        </div>
+        <PanelHead
+          title={title}
+          description={description}
+          operations={operations}
+        />
       }
     >
       <div className={styles.wrap}>
         <Form labelAlign="left" className={styles.form}>
           <div className={styles.item}>
-            <div className={styles.label}>区域:</div>
+            <div className={styles.label}><FormattedMessage id="iceworks.project.panel.oss.region.label" /></div>
             <Select
               size="medium"
               className={styles.field}
-              placeholder="请选择 region"
               value={region}
               onChange={(value) => onValueChange('region', value)}
               dataSource={regions}
@@ -144,11 +137,10 @@ const OSSPanel = ({ intl }) => {
             />
           </div>
           <div className={styles.item}>
-            <div className={styles.label}>存储空间:</div>
+            <div className={styles.label}><FormattedMessage id="iceworks.project.panel.oss.bucket.label" /></div>
             <Select
               size="medium"
               className={styles.field}
-              placeholder="请选择 bucket"
               value={bucket}
               onChange={(value) => onValueChange('bucket', value)}
               dataSource={buckets || []}
@@ -157,18 +149,17 @@ const OSSPanel = ({ intl }) => {
               type="reload"
               size="medium"
               className={styles.reload}
-              title="刷新 bukcet 列表"
               onClick={refeshBucket}
             />
           </div>
           <div className={styles.item}>
-            <div className={styles.label}>存储路径:</div>
+            <div className={styles.label}><FormattedMessage id="iceworks.project.panel.oss.directory.label" /></div>
             <Input
               size="medium"
               className={styles.field}
               value={directory}
               onChange={(value) => onValueChange('directory', value)}
-              placeholder="存储路径（不填则默认在根目录）"
+              placeholder={<FormattedMessage id="iceworks.project.panel.oss.directory.tip" />}
             />
           </div>
           <div className={styles.item}>
@@ -177,7 +168,7 @@ const OSSPanel = ({ intl }) => {
               type="primary"
               onClick={onSubmit}
             >
-              提交上传
+              <FormattedMessage id="iceworks.project.panel.oss.button.upload" />
             </Button>
           </div>
         </Form>
@@ -232,6 +223,8 @@ const OSSPanel = ({ intl }) => {
 };
 
 OSSPanel.propTypes = {
+  title: PropTypes.string.isRequired,
+  description: PropTypes.string.isRequired,
   intl: PropTypes.object.isRequired,
 };
 

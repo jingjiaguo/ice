@@ -1,11 +1,12 @@
 import * as execa from 'execa';
 import * as detectPort from 'detect-port';
 import * as path from 'path';
+import * as terminate from 'terminate';
 import chalk from 'chalk';
 import * as ipc from './ipc';
 import { getCLIConf, setCLIConf, mergeCLIConf } from '../../utils/cliConf';
-import { DEV_CONF, BUILD_CONF, LINT_CONF } from './const';
-import { ITaskModule, ITaskParam, IProject, IContext } from '../../../../interface';
+import { ITaskModule, ITaskParam, IProject, IContext, ITaskConf } from '../../../../interface';
+import getTaskConfig from './getTaskConfig';
 
 const DEFAULT_PORT = '4444';
 const TASK_STATUS_WORKING = 'working';
@@ -15,13 +16,15 @@ export default class Task implements ITaskModule {
   public project: IProject;
   public storage: any;
 
-  public status: string;
+  private status: object = {};
 
   public readonly cliConfPath: string;
 
-  private cliConfFilename = 'ice.config.js';
-
   private process: object = {};
+
+  public cliConfFilename = 'ice.config.js';
+
+  public getTaskConfig: (ctx: IContext) => ITaskConf = getTaskConfig;
 
   constructor(params: {project: IProject; storage: any; }) {
     const { project, storage } = params;
@@ -64,8 +67,9 @@ export default class Task implements ITaskModule {
     );
 
     this.process[command].stdout.on('data', (buffer) => {
+      this.status[command] = TASK_STATUS_WORKING;
       ctx.socket.emit(`adapter.task.${eventName}`, {
-        status: TASK_STATUS_WORKING,
+        status: this.status[command],
         chunk: buffer.toString(),
       });
     });
@@ -73,8 +77,9 @@ export default class Task implements ITaskModule {
     this.process[command].on('close', () => {
       if (command === 'build' || command === 'lint') {
         this.process[command] = null;
+        this.status[command] = TASK_STATUS_STOP;
         ctx.socket.emit(`adapter.task.${eventName}`, {
-          status: TASK_STATUS_STOP,
+          status: this.status[command],
           chunk: chalk.grey('Task has stopped'),
         });
       }
@@ -100,33 +105,43 @@ export default class Task implements ITaskModule {
       ipc.stop();
     }
 
-    this.process[command].kill();
-    this.process[command].on('exit', (code) => {
-      if (code === 0) {
-        ctx.socket.emit(`adapter.task.${eventName}`, {
-          status: TASK_STATUS_STOP,
-          chunk: chalk.grey('Task has stopped'),
-        });
+    const { pid } = this.process[command];
+    terminate(pid, (err) => {
+      if (err) {
+        throw err;
       }
-    });
 
-    this.process[command] = null;
+      this.status[command] = TASK_STATUS_STOP;
+      this.process[command] = null;
+
+      ctx.socket.emit(`adapter.task.${eventName}`, {
+        status: this.status[command],
+        chunk: chalk.grey('Task has stopped'),
+      });
+    })
 
     return this;
+  }
+
+  getStatus (args: ITaskParam) {
+    const { command } = args;
+    return this.status[command];
   }
 
   /**
    * get the conf of the current task
    * @param args
    */
-  async getConf(args: ITaskParam) {
+  async getConf(args: ITaskParam, ctx: IContext) {
+    const taskConfig = this.getTaskConfig(ctx);
     switch (args.command) {
       case 'dev':
-        return this.getDevConf();
+        return this.getDevConf(taskConfig);
       case 'build':
-       return getCLIConf(this.cliConfPath, BUILD_CONF);
+       return getCLIConf(this.cliConfPath, taskConfig.build);
       case 'lint':
-        return LINT_CONF;
+        // @TODO support lint configuration
+        return null;
       default:
         return [];
     }
@@ -152,21 +167,21 @@ export default class Task implements ITaskModule {
  * merge the user configuration to return to the new configuration
  * @param projectPath
  */
-  private getDevConf() {
-   const pkgContent = this.project.getPackageJSON();
-   const devScriptContent = pkgContent.scripts.start;
-   const devScriptArray = devScriptContent.split(' ');
-   const userConf = {};
-   devScriptArray.forEach(item => {
-     if (item.indexOf('--') !== -1) {
-      const key = item.match(/--(\S*)=/)[1];
-      const value = item.match(/=(\S*)$/)[1];
-      userConf[key] = value;
-    }
-  });
+  private getDevConf(taskConfig: ITaskConf) {
+    const pkgContent = this.project.getPackageJSON();
+    const devScriptContent = pkgContent.scripts.start;
+    const devScriptArray = devScriptContent.split(' ');
+    const userConf = {};
+    devScriptArray.forEach(item => {
+      if (item.indexOf('--') !== -1) {
+        const key = item.match(/--(\S*)=/)[1];
+        const value = item.match(/=(\S*)$/)[1];
+        userConf[key] = value;
+      }
+    });
 
-   return mergeCLIConf(DEV_CONF, userConf);
- }
+    return mergeCLIConf(taskConfig.dev, userConf);
+  }
 
   /**
    * set dev configuration
