@@ -1,3 +1,3 @@
-const { eslint } = require('@ice/spec');
+const { eslintTS } = require('@ice/spec');
 
-module.exports = eslint;
+module.exports = eslintTS;
