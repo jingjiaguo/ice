@@ -26,6 +26,7 @@ const packageJSONFilename = 'package.json';
 const abcJSONFilename = 'abc.json';
 const DEFAULT_TYPE = 'react';
 const DEFAULT_ADAPTER = [
+  'adapter-cra-v1',
   'adapter-react-v1',
   'adapter-react-v2',
   'adapter-react-v3',
@@ -319,7 +320,7 @@ class ProjectManager extends EventEmitter {
   private async generateAbcFile(projectDir: string, iceScriptsVersion: string) {
     // '^2.0.0' -> true
     const latestVersion = /^\^2\./.test(iceScriptsVersion);
-  
+
     const abcData = {
       type: latestVersion ? 'ice-scripts' : 'iceworks',
       builder: latestVersion ? '@ali/builder-ice-scripts' : '@ali/builder-iceworks',
